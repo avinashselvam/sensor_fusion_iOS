@@ -40,6 +40,7 @@ class ViewController: UIViewController {
         }
     }
     @IBAction func calibrate(_ sender: UIButton) {
+        initGyro()
         if let data = self.motionManager.gyroData {
             
             let x = data.rotationRate.x
@@ -89,9 +90,11 @@ class ViewController: UIViewController {
         
         let ge = self.ge, ame = self.ame
         
-        let x = f*ge.x + (1-f)*ame.x
-        let y = f*ge.y + (1-f)*ame.y
-        let z = f*ge.z + (1-f)*ame.z
+        let c = (180/Float.pi)
+        
+        let x = f*ge.x*c + (1-f)*ame.x
+        let y = f*ge.y*c + (1-f)*ame.y
+        let z = f*ge.z*c + (1-f)*ame.z
         
         self.Fx.text = String(format: "%.3f", x)
         self.Fy.text = String(format: "%.3f", y)
@@ -130,9 +133,9 @@ class ViewController: UIViewController {
             
             if let data = self.motionManager.gyroData {
                 
-                let x = data.rotationRate.x - Double(self.calibOffset.x)
-                let y = data.rotationRate.y - Double(self.calibOffset.y)
-                let z = data.rotationRate.z - Double(self.calibOffset.z)
+                let x = (data.rotationRate.x - Double(self.calibOffset.x)).roundedTo(decimalPlaces: 2)
+                let y = (data.rotationRate.y - Double(self.calibOffset.y)).roundedTo(decimalPlaces: 2)
+                let z = (data.rotationRate.z - Double(self.calibOffset.z)).roundedTo(decimalPlaces: 2)
                 
                 self.Gx.text = String(format: "%.3f", x)
                 self.Gy.text = String(format: "%.3f", y)
@@ -154,15 +157,22 @@ class ViewController: UIViewController {
             
             if let data = self.motionManager.magnetometerData {
                 
-                let x = data.magneticField.x
-                let y = data.magneticField.y
-                let z = data.magneticField.z
+                let x = Float(data.magneticField.x)
+                let y = Float(data.magneticField.y)
+                let z = Float(data.magneticField.z)
                 
                 self.Mx.text = String(format: "%.2f", x)
                 self.My.text = String(format: "%.2f", y)
                 self.Mz.text = String(format: "%.2f", z)
                 
-                let yaw = atan(y/x)
+                let c = Float.pi/180
+                let roll = self.ame.x*c, pitch = self.ame.z*c
+                
+                let Yh = (y * cos(roll)) - (z * sin(roll));
+                let Xh = (x * cos(pitch))+(y * sin(roll)*sin(pitch)) + (z * cos(roll) * sin(pitch));
+                
+                let yaw = atan(Yh/Xh)*(180/Float.pi)
+                
                 
                 self.AMEy.text = String(format: "%.3f", yaw)
                 
@@ -179,8 +189,8 @@ class ViewController: UIViewController {
                 self.Ay.text = String(format: "%.3f", y)
                 self.Az.text = String(format: "%.3f", z)
                 
-                let pitch = atan(y/pow(pow(x, 2) + pow(z,2), 0.5))
-                let roll = atan(-x/z)
+                let pitch = atan(y/pow(pow(x, 2) + pow(z,2), 0.5))*(180/Double.pi)
+                let roll = atan(-x/z)*(180/Double.pi)
                 
                 self.AMEx.text = String(format: "%.3f", pitch)
                 self.AMEz.text = String(format: "%.3f", roll)
@@ -196,20 +206,61 @@ class ViewController: UIViewController {
         
         RunLoop.current.add(self.timer, forMode: RunLoop.Mode.default)
     }
+    
+    func initGyro(){
+        if let data = self.motionManager.accelerometerData {
+            
+            let x = data.acceleration.x
+            let y = data.acceleration.y
+            let z = data.acceleration.z
+            
+            let pitch = atan(y/pow(pow(x, 2) + pow(z,2), 0.5))
+            let roll = atan(-x/z)
+            
+            self.a = pitch
+            self.c = roll
+            
+        }
+        
+        if let data = self.motionManager.magnetometerData {
+            
+            let x = Float(data.magneticField.x)
+            let y = Float(data.magneticField.y)
+            let z = Float(data.magneticField.z)
+            
+            let c = Float.pi/180
+            let roll = self.ame.x*c, pitch = self.ame.z*c
+            
+            let Yh = (y * cos(roll)) - (z * sin(roll));
+            let Xh = (x * cos(pitch))+(y * sin(roll)*sin(pitch)) + (z * cos(roll) * sin(pitch));
+            
+            let yaw = atan(Yh/Xh)
+            
+            self.b = Double(yaw)
+        }
+    }
 
     override func viewDidLoad() {
         super.viewDidLoad()
         self.blue = startBtn.textColor
+        initGyro()
     }
     
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         
         let tap = UITapGestureRecognizer(target: self, action: #selector(onTap))
-        tap.numberOfTapsRequired = 1
+        tap.numberOfTapsRequired = 2
         self.view.addGestureRecognizer(tap)
     }
 
 
+}
+
+extension Double {
+    func roundedTo(decimalPlaces: Int) -> Double {
+        let formattedString = String(format: "%.\(decimalPlaces)f", self) as String
+        return Double(formattedString)!
+    }
 }
 
