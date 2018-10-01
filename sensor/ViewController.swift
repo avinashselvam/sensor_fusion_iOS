@@ -146,9 +146,11 @@ class ViewController: UIViewController {
                 self.b += y*(timer.timeInterval)
                 self.c += z*(timer.timeInterval)
                 
-                self.GEx.text = String(format: "%.3f", self.a)
-                self.GEy.text = String(format: "%.3f", self.b)
-                self.GEz.text = String(format: "%.3f", self.c)
+                let c = (180/Double.pi)
+                
+                self.GEx.text = String(format: "%.3f", self.a*c)
+                self.GEy.text = String(format: "%.3f", self.b*c)
+                self.GEz.text = String(format: "%.3f", self.c*c)
                 
                 self.ge = SCNVector3(self.a, self.b, self.c)
                 
@@ -189,8 +191,8 @@ class ViewController: UIViewController {
                 self.Ay.text = String(format: "%.3f", y)
                 self.Az.text = String(format: "%.3f", z)
                 
-                let pitch = atan(y/pow(pow(x, 2) + pow(z,2), 0.5))*(180/Double.pi)
-                let roll = atan(-x/z)*(180/Double.pi)
+                let pitch = atan(-y/pow(pow(x, 2) + pow(z,2), 0.5))*(180/Double.pi)
+                let roll = atan(x/z)*(180/Double.pi)
                 
                 self.AMEx.text = String(format: "%.3f", pitch)
                 self.AMEz.text = String(format: "%.3f", roll)
@@ -200,7 +202,7 @@ class ViewController: UIViewController {
                 
             }
             
-            self.compFilter(factor: 0.3)
+            self.compFilter(factor: 0.9)
             
         })
         
@@ -214,8 +216,8 @@ class ViewController: UIViewController {
             let y = data.acceleration.y
             let z = data.acceleration.z
             
-            let pitch = atan(y/pow(pow(x, 2) + pow(z,2), 0.5))
-            let roll = atan(-x/z)
+            let pitch = atan(-y/pow(pow(x, 2) + pow(z,2), 0.5))
+            let roll = atan(x/z)
             
             self.a = pitch
             self.c = roll
@@ -231,8 +233,8 @@ class ViewController: UIViewController {
             let c = Float.pi/180
             let roll = self.ame.x*c, pitch = self.ame.z*c
             
-            let Yh = (y * cos(roll)) - (z * sin(roll));
-            let Xh = (x * cos(pitch))+(y * sin(roll)*sin(pitch)) + (z * cos(roll) * sin(pitch));
+            let Yh = (y * cos(roll)) - (z * sin(roll))
+            let Xh = (x * cos(pitch))+(y * sin(roll)*sin(pitch)) + (z * cos(roll) * sin(pitch))
             
             let yaw = atan(Yh/Xh)
             
