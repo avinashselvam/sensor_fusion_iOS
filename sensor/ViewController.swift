@@ -12,6 +12,9 @@ import SceneKit
 
 class ViewController: UIViewController {
     
+//    filter choice
+    @IBOutlet weak var filterName: UISegmentedControl!
+    
     //    filtered estimate
     @IBOutlet weak var Fz: UILabel!
     @IBOutlet weak var Fy: UILabel!
@@ -47,12 +50,18 @@ class ViewController: UIViewController {
     let motionManager = CMMotionManager()
     var timer = Timer()
     
+    let kalmanFilters = [Kalman(), Kalman(), Kalman()]
+    
     var g = float3(0,0,0) { didSet{ setLabels([Gx, Gy, Gz], with: g) } }
     var a = float3(0,0,0) { didSet{ setLabels([Ax, Ay, Az], with: a) } }
     var m = float3(0,0,0) { didSet{ setLabels([Mx, My, Mz], with: m) } }
     
-    var ge = float3(0,0,0) { didSet{ setLabels([GEx, GEy, GEz], with: ge) } }
-    var ame = float3(0,0,0) { didSet{ setLabels([AMEx, AMEy, AMEz], with: ame) } }
+    var gOffset = float3(-0.02,0.2,-0.02)
+    
+    var ge = float3(0,0,0) { didSet{ setLabels([GEx, GEy, GEz], with: ge.toDegree()) } }
+    var ame = float3(0,0,0) { didSet{ setLabels([AMEx, AMEy, AMEz], with: ame.toDegree()) } }
+    
+    var fe = float3(0,0,0) { didSet{ setLabels([Fx, Fy, Fz], with: fe.toDegree()) } }
     
 //    app's state i.e if sensor data is being received
     var isRunning = true
@@ -79,7 +88,6 @@ class ViewController: UIViewController {
     func initGyro(){
         //  gyro needs initial values since it measures only angular velocity.
         //  So we init its estimate with acc + mag estimate
-        g = float3(0,0,0)
         ge = ame
     }
     
@@ -90,28 +98,49 @@ class ViewController: UIViewController {
     }
     
     func getsetSensorValues(){
-        guard let accValues = motionManager.getAcc() else { return }
-        a = accValues
-        guard let magValues = motionManager.getMag() else { return }
-        m = magValues
-        guard let gyroValues = motionManager.getGyro() else { return }
-        g = gyroValues
+        if let accValues = motionManager.getAcc() { a = accValues }
+        if let magValues = motionManager.getMag() { m = magValues }
+        if let gyroValues = motionManager.getGyro() { g = gyroValues - gOffset }
     }
     
     func calcEstimates(){
+        //        angle = 0.98 *(angle+gyro*dt) + 0.02*acc
         //       x -> pitch, y -> roll, z -> yaw
-        let dt = timer.timeInterval.f(3)
+        let dt = timer.timeInterval.f(2)
         ge += float3(g.x*dt, g.y*dt, g.z*dt)
         
+        ame = float3(atan2(a.y, a.z), atan2(a.x, a.z), atan2(m.z, m.x))
+    }
+    
+    func complimentaryFilter(withFactor f: Float){
+        fe = float3(f*ge.x + (1-f)*ame.x, f*ge.y + (1-f)*ame.y, f*ge.z + (1-f)*ame.z)
+    }
+    
+    func kalmanFilter(){
+        let x = kalmanFilters[0].applyFilter(Double(ame.x), Double(g.x))
+        let y = kalmanFilters[1].applyFilter(Double(ame.y), Double(g.y))
+        let z = kalmanFilters[2].applyFilter(Double(ame.z), Double(g.z))
         
-        
+        fe = float3(x, y, z)
+    }
+    
+    
+    
+    func filterEstimates(){
+        switch filterName.selectedSegmentIndex
+        {
+        case 0: complimentaryFilter(withFactor: 0.4)
+        case 1: kalmanFilter()
+        default: break
+        }
     }
     
     func startUpdates() {
-        motionManager.startSensors(withFrequency: 1.0/60)
+        motionManager.startSensors(withFrequency: 1.0/60.0)
         timer = Timer(fire: Date(), interval: 1.0/60.0, repeats: true, block:{ (timer) in
             self.getsetSensorValues()
             self.calcEstimates()
+            self.filterEstimates()
         })
         //        adds timer to current thread so that it's executed at constant frequency
         RunLoop.current.add(timer, forMode: RunLoop.Mode.default)
@@ -138,6 +167,13 @@ extension Double {
     func f(_ decimalPlaces: Int) -> Float {
         let formattedString = String(format: "%.\(decimalPlaces)f", self)
         return Float(formattedString)!
+    }
+}
+
+extension float3 {
+    func toDegree() -> float3{
+        let f = 180/Float.pi
+        return float3(self.x*f, self.y*f, self.z*f)
     }
 }
 
